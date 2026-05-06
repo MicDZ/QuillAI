@@ -16,3 +16,8 @@ AI-powered grammar and style checker for Markdown and Plaintext files in VS Code
 - `npm run compile` - Build with esbuild
 - `npm test` - Run VS Code integration tests
 - `npm run lint` - Run ESLint
+
+## git commit message format
+- Use prefixes like `feat:`, `fix:`, `docs:`, `refactor:`, etc.
+- Example: `feat: add diff preview for suggested fixes`
+- Body should be concise but descriptive of the change using bullet points if needed.

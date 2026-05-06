@@ -40,6 +40,7 @@ export interface LinterConfig {
     systemPrompt: string;
     enabled: boolean;
     diagnosticSeverity: 'error' | 'warning' | 'information' | 'hint';
+    language: string;
 }
 
 /**

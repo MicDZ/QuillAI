@@ -151,6 +151,55 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage('QuillAI: All diagnostics cleared.');
     });
 
+    // Command: Set Proofreading Language
+    const setLanguageCmd = vscode.commands.registerCommand('quillai.setLanguage', async () => {
+        const languageOptions: { label: string; value: string; description: string }[] = [
+            { label: '$(zap) Auto Detect', value: 'auto', description: 'Let the LLM detect the language automatically' },
+            { label: 'English', value: 'en', description: 'English' },
+            { label: '中文', value: 'zh', description: 'Chinese' },
+            { label: '日本語', value: 'ja', description: 'Japanese' },
+            { label: '한국어', value: 'ko', description: 'Korean' },
+            { label: 'Français', value: 'fr', description: 'French' },
+            { label: 'Deutsch', value: 'de', description: 'German' },
+            { label: 'Español', value: 'es', description: 'Spanish' },
+            { label: 'Português', value: 'pt', description: 'Portuguese' },
+            { label: 'Русский', value: 'ru', description: 'Russian' },
+            { label: 'العربية', value: 'ar', description: 'Arabic' },
+            { label: 'Italiano', value: 'it', description: 'Italian' },
+            { label: 'Nederlands', value: 'nl', description: 'Dutch' },
+            { label: 'Polski', value: 'pl', description: 'Polish' },
+            { label: 'Türkçe', value: 'tr', description: 'Turkish' },
+            { label: 'Tiếng Việt', value: 'vi', description: 'Vietnamese' },
+            { label: 'ไทย', value: 'th', description: 'Thai' },
+            { label: 'Bahasa Indonesia', value: 'id', description: 'Indonesian' },
+        ];
+
+        const current = vscode.workspace.getConfiguration('quillai').get<string>('language', 'auto');
+
+        const selected = await vscode.window.showQuickPick(
+            languageOptions.map(opt => ({
+                label: opt.label,
+                description: opt.description,
+                picked: opt.value === current,
+                value: opt.value,
+            })),
+            {
+                placeHolder: 'Select the proofreading language',
+                title: 'QuillAI: Set Proofreading Language',
+            }
+        );
+
+        if (selected) {
+            await vscode.workspace.getConfiguration('quillai').update(
+                'language', selected.value, vscode.ConfigurationTarget.Global
+            );
+            const msg = selected.value === 'auto'
+                ? 'QuillAI: Language set to auto-detect.'
+                : `QuillAI: Language set to ${selected.label}.`;
+            vscode.window.showInformationMessage(msg);
+        }
+    });
+
     // Command: Preview Diff (called from CodeActions)
     const previewDiffCmd = vscode.commands.registerCommand('quillai.previewDiff', (issue: LintIssue) => {
         DiffPreview.showDiff(issue);
@@ -242,6 +291,7 @@ export function activate(context: vscode.ExtensionContext) {
         setApiKeyCmd,
         checkDocCmd,
         clearDiagCmd,
+        setLanguageCmd,
         previewDiffCmd,
         applyFixCmd,
         ignoreIssueCmd,

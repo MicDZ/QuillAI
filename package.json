@@ -28,6 +28,10 @@
       {
         "command": "quillai.clearDiagnostics",
         "title": "QuillAI: Clear All Diagnostics"
+      },
+      {
+        "command": "quillai.setLanguage",
+        "title": "QuillAI: Set Proofreading Language"
       }
     ],
     "configuration": {
@@ -78,6 +82,51 @@
           "enum": ["error", "warning", "information", "hint"],
           "default": "warning",
           "description": "Default severity level for diagnostics when the LLM doesn't specify."
+        },
+        "quillai.language": {
+          "type": "string",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "en",
+            "zh",
+            "ja",
+            "ko",
+            "fr",
+            "de",
+            "es",
+            "pt",
+            "ru",
+            "ar",
+            "it",
+            "nl",
+            "pl",
+            "tr",
+            "vi",
+            "th",
+            "id"
+          ],
+          "enumDescriptions": [
+            "Auto-detect from document content",
+            "English",
+            "中文 (Chinese)",
+            "日本語 (Japanese)",
+            "한국어 (Korean)",
+            "Français (French)",
+            "Deutsch (German)",
+            "Español (Spanish)",
+            "Português (Portuguese)",
+            "Русский (Russian)",
+            "العربية (Arabic)",
+            "Italiano (Italian)",
+            "Nederlands (Dutch)",
+            "Polski (Polish)",
+            "Türkçe (Turkish)",
+            "Tiếng Việt (Vietnamese)",
+            "ไทย (Thai)",
+            "Bahasa Indonesia (Indonesian)"
+          ],
+          "description": "The language for proofreading. Set to 'auto' to let the LLM detect the language automatically."
         }
       }
     }

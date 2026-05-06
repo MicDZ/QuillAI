@@ -75,7 +75,8 @@ export class ProseScanner {
             }
 
             const provider = createProvider(config.provider, this.configManager);
-            const issues = await provider.analyze(text, config.systemPrompt);
+            const systemPrompt = this.buildSystemPrompt(config.systemPrompt, config.language);
+            const issues = await provider.analyze(text, systemPrompt);
 
             // Issues are returned with 1-based line numbers matching the numbered text.
             // No offset adjustment needed since line numbers are explicit in the sent text.
@@ -179,6 +180,38 @@ export class ProseScanner {
         }
 
         return { startLine, endLine };
+    }
+
+    /**
+     * Build the system prompt with language instruction.
+     */
+    private buildSystemPrompt(basePrompt: string, language: string): string {
+        if (!language || language === 'auto') {
+            return basePrompt;
+        }
+
+        const languageNames: Record<string, string> = {
+            en: 'English',
+            zh: 'Chinese (中文)',
+            ja: 'Japanese (日本語)',
+            ko: 'Korean (한국어)',
+            fr: 'French (Français)',
+            de: 'German (Deutsch)',
+            es: 'Spanish (Español)',
+            pt: 'Portuguese (Português)',
+            ru: 'Russian (Русский)',
+            ar: 'Arabic (العربية)',
+            it: 'Italian (Italiano)',
+            nl: 'Dutch (Nederlands)',
+            pl: 'Polish (Polski)',
+            tr: 'Turkish (Türkçe)',
+            vi: 'Vietnamese (Tiếng Việt)',
+            th: 'Thai (ไทย)',
+            id: 'Indonesian (Bahasa Indonesia)',
+        };
+
+        const languageName = languageNames[language] ?? language;
+        return basePrompt + `\n\nIMPORTANT: The text you are proofreading is written in ${languageName}. Evaluate grammar, spelling, punctuation, and style according to the conventions of ${languageName}.`;
     }
 
     /**

@@ -28,6 +28,7 @@ export class ConfigManager {
             systemPrompt: config.get<string>('systemPrompt', ''),
             enabled: config.get<boolean>('enabled', true),
             diagnosticSeverity: config.get<'error' | 'warning' | 'information' | 'hint'>('diagnosticSeverity', 'warning'),
+            language: config.get<string>('language', 'auto'),
         };
     }
 
