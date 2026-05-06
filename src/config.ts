@@ -41,11 +41,36 @@ export class ConfigManager {
     }
 
     /**
-     * Retrieve the API key for a given provider from SecretStorage.
+     * Retrieve the API key for a given provider.
+     * First checks SecretStorage, then falls back to settings (quillai.apiKey).
      */
     async getApiKey(provider: ProviderType): Promise<string> {
         const secretKey = SECRET_KEY_PREFIX + provider;
-        return (await this.context.secrets.get(secretKey)) ?? '';
+        const stored = await this.context.secrets.get(secretKey);
+        if (stored) {
+            return stored;
+        }
+        // Fallback to settings
+        const config = vscode.workspace.getConfiguration('quillai');
+        return config.get<string>('apiKey', '');
+    }
+
+    /**
+     * Get the configured API key from settings (quillai.apiKey),
+     * NOT from SecretStorage. Returns empty string if not set.
+     */
+    getSettingsApiKey(): string {
+        const config = vscode.workspace.getConfiguration('quillai');
+        return config.get<string>('apiKey', '');
+    }
+
+    /**
+     * Get the configured endpoint from settings (quillai.endpoint).
+     * Returns empty string if not set.
+     */
+    getSettingsEndpoint(): string {
+        const config = vscode.workspace.getConfiguration('quillai');
+        return config.get<string>('endpoint', '');
     }
 
     /**

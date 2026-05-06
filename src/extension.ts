@@ -31,56 +31,81 @@ export function activate(context: vscode.ExtensionContext) {
         const provider = vscode.workspace.getConfiguration('quillai').get<ProviderType>('provider', 'openai');
         const defaultBaseUrl = ConfigManager.getDefaultBaseUrl(provider);
 
-        // Step 1: Ask for base URL
-        const baseUrl = await vscode.window.showInputBox({
-            prompt: `Enter the API base URL for ${provider} (e.g. ${defaultBaseUrl})`,
-            placeHolder: defaultBaseUrl,
-            value: defaultBaseUrl,
-            validateInput: (value) => {
-                if (!value || value.trim().length === 0) {
-                    return 'Base URL cannot be empty';
+        // Check if api_key and endpoint are already configured in settings
+        const settingsApiKey = configManager.getSettingsApiKey();
+        const settingsEndpoint = configManager.getSettingsEndpoint();
+
+        let finalBaseUrl: string;
+        let finalApiKey: string;
+
+        if (settingsApiKey && settingsEndpoint) {
+            // Both are already set in settings — use them directly, skip prompts
+            finalBaseUrl = settingsEndpoint.replace(/\/+$/, '');
+            finalApiKey = settingsApiKey.trim();
+            vscode.window.showInformationMessage(
+                `QuillAI: Using API key and endpoint from settings. Proceeding to model selection...`
+            );
+        } else {
+            // Need to prompt for missing values
+
+            // Step 1: Ask for base URL (pre-fill from settings if available)
+            const baseUrlValue = settingsEndpoint || defaultBaseUrl;
+            const baseUrl = await vscode.window.showInputBox({
+                prompt: `Enter the API base URL for ${provider} (e.g. ${defaultBaseUrl})`,
+                placeHolder: defaultBaseUrl,
+                value: baseUrlValue,
+                validateInput: (value) => {
+                    if (!value || value.trim().length === 0) {
+                        return 'Base URL cannot be empty';
+                    }
+                    try {
+                        new URL(value.trim());
+                    } catch {
+                        return 'Please enter a valid URL';
+                    }
+                    return null;
                 }
-                try {
-                    new URL(value.trim());
-                } catch {
-                    return 'Please enter a valid URL';
-                }
-                return null;
+            });
+
+            // If user pressed Escape, cancel the whole flow
+            if (baseUrl === undefined) {
+                return;
             }
-        });
 
-        // If user pressed Escape, cancel the whole flow
-        if (baseUrl === undefined) {
-            return;
-        }
+            finalBaseUrl = baseUrl.trim().replace(/\/+$/, '');
+            await vscode.workspace.getConfiguration('quillai').update(
+                'endpoint', finalBaseUrl, vscode.ConfigurationTarget.Global
+            );
 
-        const trimmedBaseUrl = baseUrl.trim().replace(/\/+$/, '');
-        await vscode.workspace.getConfiguration('quillai').update(
-            'endpoint', trimmedBaseUrl, vscode.ConfigurationTarget.Global
-        );
+            // Step 2: Ask for API Key (skip if already in settings)
+            if (settingsApiKey) {
+                finalApiKey = settingsApiKey.trim();
+                vscode.window.showInformationMessage(
+                    `QuillAI: Using API key from settings.`
+                );
+            } else {
+                const apiKey = await vscode.window.showInputBox({
+                    prompt: `Enter your API key for ${provider}`,
+                    password: true,
+                    placeHolder: 'sk-... or your API key',
+                    validateInput: (value) => {
+                        if (!value || value.trim().length === 0) {
+                            return 'API Key cannot be empty';
+                        }
+                        return null;
+                    }
+                });
 
-        // Step 2: Ask for API Key
-        const apiKey = await vscode.window.showInputBox({
-            prompt: `Enter your API key for ${provider}`,
-            password: true,
-            placeHolder: 'sk-... or your API key',
-            validateInput: (value) => {
-                if (!value || value.trim().length === 0) {
-                    return 'API Key cannot be empty';
+                if (!apiKey) {
+                    return;
                 }
-                return null;
+                finalApiKey = apiKey.trim();
+                await configManager.setApiKey(provider, finalApiKey);
+                vscode.window.showInformationMessage(`QuillAI: API key stored securely for ${provider}.`);
             }
-        });
-
-        if (!apiKey) {
-            return;
         }
-        await configManager.setApiKey(provider, apiKey.trim());
-        vscode.window.showInformationMessage(`QuillAI: API key stored securely for ${provider}.`);
 
         // Step 3: Fetch available models and let user select
-        const currentBaseUrl = trimmedBaseUrl;
-
         await vscode.window.withProgress(
             {
                 location: vscode.ProgressLocation.Notification,
@@ -89,7 +114,7 @@ export function activate(context: vscode.ExtensionContext) {
             },
             async () => {
                 try {
-                    const models = await fetchAvailableModels(currentBaseUrl, apiKey.trim(), provider);
+                    const models = await fetchAvailableModels(finalBaseUrl, finalApiKey, provider);
 
                     if (models.length === 0) {
                         vscode.window.showWarningMessage('QuillAI: No models found from the API. You can set the model name manually in settings.');

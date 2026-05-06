@@ -48,6 +48,12 @@
           "default": "gpt-4o",
           "description": "The model name to use (e.g., gpt-4o, claude-3-5-sonnet-20241022, llama3)."
         },
+        "quillai.apiKey": {
+          "type": "string",
+          "default": "",
+          "editPresentation": "password",
+          "description": "API key for the selected provider. If set here, 'Set API Key' command will use this value directly without prompting."
+        },
         "quillai.endpoint": {
           "type": "string",
           "default": "",
