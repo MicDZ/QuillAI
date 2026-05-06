@@ -3,6 +3,7 @@
   "displayName": "QuillAI",
   "description": "AI-powered grammar and style checker for Markdown and Plaintext files",
   "version": "0.0.1",
+  "icon": "assets/logo.png",
   "engines": {
     "vscode": "^1.118.0"
   },
