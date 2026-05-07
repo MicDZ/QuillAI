@@ -151,8 +151,9 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         const document = editor.document;
-        if (document.languageId !== 'markdown' && document.languageId !== 'plaintext') {
-            vscode.window.showWarningMessage('QuillAI: Current file is not Markdown or Plaintext.');
+        const supportedLanguages = vscode.workspace.getConfiguration('quillai').get<string[]>('languages', ['markdown', 'plaintext', 'latex']);
+        if (!supportedLanguages.includes(document.languageId)) {
+            vscode.window.showWarningMessage(`QuillAI: Current file type '${document.languageId}' is not in the supported languages list.`);
             return;
         }
 

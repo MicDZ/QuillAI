@@ -41,6 +41,7 @@ export interface LinterConfig {
     enabled: boolean;
     diagnosticSeverity: 'error' | 'warning' | 'information' | 'hint';
     language: string;
+    languages: string[];
 }
 
 /**

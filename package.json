@@ -1,7 +1,7 @@
 {
   "name": "quillai",
   "displayName": "QuillAI",
-  "description": "AI-powered grammar and style checker for Markdown and Plaintext files",
+  "description": "AI-powered grammar and style checker for Markdown, Plaintext, LaTeX, and more",
   "version": "0.0.1",
   "icon": "assets/logo.png",
   "engines": {
@@ -11,8 +11,7 @@
     "Other"
   ],
   "activationEvents": [
-    "onLanguage:markdown",
-    "onLanguage:plaintext"
+    "*"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -133,6 +132,18 @@
             "Bahasa Indonesia (Indonesian)"
           ],
           "description": "The language for proofreading. Set to 'auto' to let the LLM detect the language automatically."
+        },
+        "quillai.languages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "markdown",
+            "plaintext",
+            "latex"
+          ],
+          "description": "File types (language IDs) to check. Defaults to markdown, plaintext, and latex. Add custom language IDs like 'restructuredtext', 'org', etc."
         }
       }
     }

@@ -29,6 +29,7 @@ export class ConfigManager {
             enabled: config.get<boolean>('enabled', true),
             diagnosticSeverity: config.get<'error' | 'warning' | 'information' | 'hint'>('diagnosticSeverity', 'warning'),
             language: config.get<string>('language', 'auto'),
+            languages: config.get<string[]>('languages', ['markdown', 'plaintext', 'latex']),
         };
     }
 

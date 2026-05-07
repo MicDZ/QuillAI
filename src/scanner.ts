@@ -26,8 +26,9 @@ export class ProseScanner {
     triggerScan(document: vscode.TextDocument): void {
         const uri = document.uri.toString();
 
-        // Only scan markdown and plaintext files
-        if (document.languageId !== 'markdown' && document.languageId !== 'plaintext') {
+        // Only scan files matching configured language types
+        const supportedLanguages = vscode.workspace.getConfiguration('quillai').get<string[]>('languages', ['markdown', 'plaintext', 'latex']);
+        if (!supportedLanguages.includes(document.languageId)) {
             return;
         }
 
@@ -51,6 +52,8 @@ export class ProseScanner {
 
     /**
      * Scan a document immediately (no debounce).
+     * For documents larger than maxChars, splits into paragraph-based chunks
+     * and scans each chunk to cover the entire document.
      */
     async scanDocument(document: vscode.TextDocument): Promise<LintIssue[]> {
         const uri = document.uri.toString();
@@ -68,20 +71,28 @@ export class ProseScanner {
         this.scanningDocuments.add(uri);
 
         try {
-            const { text } = this.extractText(document, config.maxChars);
-            if (!text.trim()) {
+            const chunks = this.splitIntoChunks(document, config.maxChars);
+            if (chunks.length === 0) {
                 this.diagnosticManager.clearDiagnostics(document.uri);
                 return [];
             }
 
             const provider = createProvider(config.provider, this.configManager);
             const systemPrompt = this.buildSystemPrompt(config.systemPrompt, config.language);
-            const issues = await provider.analyze(text, systemPrompt);
 
-            // Issues are returned with 1-based line numbers matching the numbered text.
-            // No offset adjustment needed since line numbers are explicit in the sent text.
-            this.diagnosticManager.updateDiagnostics(document, issues, config.diagnosticSeverity);
-            return issues;
+            const allIssues: LintIssue[] = [];
+
+            for (const chunk of chunks) {
+                if (!chunk.text.trim()) {
+                    continue;
+                }
+                const issues = await provider.analyze(chunk.text, systemPrompt);
+                // Issues already have correct 1-based line numbers from the numbered text
+                allIssues.push(...issues);
+            }
+
+            this.diagnosticManager.updateDiagnostics(document, allIssues, config.diagnosticSeverity);
+            return allIssues;
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             vscode.window.showErrorMessage(`QuillAI: ${message}`);
@@ -92,27 +103,70 @@ export class ProseScanner {
     }
 
     /**
-     * Extract text from a document and add line numbers for the LLM.
-     * Returns the numbered text and the line offset for paragraph extraction.
+     * Split a document into paragraph-based chunks that each fit within maxChars.
+     * Each chunk is a numbered text string ready to send to the LLM.
      */
-    private extractText(document: vscode.TextDocument, maxChars: number): { text: string; lineOffset: number } {
+    private splitIntoChunks(document: vscode.TextDocument, maxChars: number): { text: string }[] {
+        const totalLines = document.lineCount;
+        if (totalLines === 0) {
+            return [];
+        }
+
+        // Fast path: entire document fits in one chunk
         const fullText = document.getText();
-
         if (fullText.length <= maxChars) {
-            return { text: this.addLineNumbers(document, 0, document.lineCount - 1), lineOffset: 0 };
+            return [{ text: this.addLineNumbers(document, 0, totalLines - 1) }];
         }
 
-        // For large documents, extract the paragraph at the cursor
-        const editor = vscode.window.activeTextEditor;
-        if (!editor || editor.document.uri.toString() !== document.uri.toString()) {
-            // No active editor for this document, return the first chunk
-            const endLine = this.findEndLineForCharLimit(document, 0, maxChars);
-            return { text: this.addLineNumbers(document, 0, endLine), lineOffset: 0 };
+        // Split into paragraph-based chunks
+        const chunks: { text: string }[] = [];
+        let chunkStartLine = 0;
+
+        while (chunkStartLine < totalLines) {
+            let chunkEndLine = chunkStartLine;
+            let charCount = 0;
+
+            // Grow the chunk line by line until we exceed maxChars
+            while (chunkEndLine < totalLines) {
+                const lineLen = document.lineAt(chunkEndLine).text.length + 1; // +1 for newline
+                if (charCount + lineLen > maxChars && chunkEndLine > chunkStartLine) {
+                    // Try to break at a paragraph boundary (empty line) for cleaner splits
+                    const breakLine = this.findParagraphBreak(document, chunkStartLine, chunkEndLine);
+                    if (breakLine > chunkStartLine) {
+                        chunkEndLine = breakLine;
+                    }
+                    break;
+                }
+                charCount += lineLen;
+                chunkEndLine++;
+            }
+
+            // chunkEndLine is now exclusive (one past the last line in this chunk)
+            const endLine = Math.min(chunkEndLine - 1, totalLines - 1);
+            const text = this.addLineNumbers(document, chunkStartLine, endLine);
+            if (text.trim()) {
+                chunks.push({ text });
+            }
+
+            chunkStartLine = chunkEndLine;
         }
 
-        const cursorLine = editor.selection.active.line;
-        const { startLine, endLine } = this.extractParagraphRange(document, cursorLine, maxChars);
-        return { text: this.addLineNumbers(document, startLine, endLine), lineOffset: startLine };
+        return chunks;
+    }
+
+    /**
+     * Find the best paragraph break (empty line) in a range for cleaner chunk splitting.
+     * Searches backwards from the end of the range for an empty line.
+     * Returns the line number after the empty line (start of next paragraph).
+     */
+    private findParagraphBreak(document: vscode.TextDocument, startLine: number, endLine: number): number {
+        // Search backwards from endLine for an empty line
+        for (let i = endLine - 1; i > startLine; i--) {
+            if (document.lineAt(i).text.trim() === '') {
+                return i + 1; // Start of the next paragraph
+            }
+        }
+        return endLine; // No good break found, use the original end
     }
 
     /**
@@ -125,61 +179,6 @@ export class ProseScanner {
             lines.push(`${i + 1}|${document.lineAt(i).text}`);
         }
         return lines.join('\n');
-    }
-
-    /**
-     * Find the last line that fits within the character limit.
-     */
-    private findEndLineForCharLimit(document: vscode.TextDocument, startLine: number, maxChars: number): number {
-        let charCount = 0;
-        let endLine = startLine;
-        while (endLine < document.lineCount) {
-            charCount += document.lineAt(endLine).text.length + 1; // +1 for newline
-            if (charCount > maxChars) {
-                break;
-            }
-            endLine++;
-        }
-        return Math.max(startLine, endLine - 1);
-    }
-
-    /**
-     * Extract paragraph range around the given line number.
-     * A paragraph is defined as a block of non-empty lines.
-     */
-    private extractParagraphRange(document: vscode.TextDocument, aroundLine: number, maxChars: number): { startLine: number; endLine: number } {
-        const totalLines = document.lineCount;
-        let startLine = aroundLine;
-        let endLine = aroundLine;
-
-        // Find the start of the paragraph (go up until we hit an empty line or beginning)
-        while (startLine > 0) {
-            const prevLine = document.lineAt(startLine - 1);
-            if (prevLine.text.trim() === '') {
-                break;
-            }
-            startLine--;
-        }
-
-        // Find the end of the paragraph (go down until we hit an empty line or end)
-        while (endLine < totalLines - 1) {
-            const nextLine = document.lineAt(endLine + 1);
-            if (nextLine.text.trim() === '') {
-                break;
-            }
-            endLine++;
-        }
-
-        // If paragraph is still too large, truncate
-        let charCount = 0;
-        for (let i = startLine; i <= endLine; i++) {
-            charCount += document.lineAt(i).text.length + 1;
-        }
-        if (charCount > maxChars) {
-            endLine = this.findEndLineForCharLimit(document, startLine, maxChars);
-        }
-
-        return { startLine, endLine };
     }
 
     /**

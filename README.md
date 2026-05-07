@@ -14,7 +14,7 @@ An AI-powered VS Code extension that provides real-time grammar, spelling, and s
 - 📊 **Diff Preview** — Before applying a fix, see a clear side-by-side comparison of the original text and the suggested correction
 - 🔌 **Multi-Provider Support** — Works with OpenAI (GPT-4o), Anthropic (Claude 3.5 Sonnet), and local models via Ollama
 - 🔒 **Secure API Key Storage** — API keys are stored in VS Code's encrypted SecretStorage, never in config files
-- 📄 **Smart Paragraph Scanning** — For large documents (>5000 chars), intelligently scans only the paragraph at the cursor position
+- 📄 **Full Document Scanning** — Large documents are split into paragraph-based chunks, each scanned sequentially to cover the entire file
 
 ## Getting Started
 
@@ -41,7 +41,7 @@ Open VS Code Settings (`Cmd+,`) and search for "QuillAI":
 
 ### 3. Start Writing
 
-Open any `.md` or `.txt` file. The extension will automatically scan your text and highlight issues.
+Open any `.md`, `.txt`, or `.tex` file. The extension will automatically scan your text and highlight issues. For large documents, it splits the text into paragraph-based chunks and scans each one to cover the entire file.
 
 ## Commands
 
