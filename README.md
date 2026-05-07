@@ -16,6 +16,23 @@ An AI-powered VS Code extension that provides real-time grammar, spelling, and s
 - 🔒 **Secure API Key Storage** — API keys are stored in VS Code's encrypted SecretStorage, never in config files
 - 📄 **Full Document Scanning** — Large documents are split into paragraph-based chunks, each scanned sequentially to cover the entire file
 
+### Demo
+
+<p align="center">
+  <img src="assets/demo.png" alt="Wavy underline diagnostics in editor" width="200">
+  <br><em>Wavy underlines highlight grammar and style issues directly in the editor</em>
+</p>
+<p align="center">
+  <img src="assets/info.png" alt="Hover to see error details" width="300">
+  <br><em>Hover over a wavy underline to see detailed error information</em>
+</p>
+<p align="center">
+  <img src="assets/fix.png" alt="Quick fix suggestions" width="200">
+  <br><em>Click on an issue to see suggested quick fixes</em>
+</p>
+
+
+
 ## Getting Started
 
 ### 1. Set Your API Key
