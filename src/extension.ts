@@ -260,6 +260,7 @@ export function activate(context: vscode.ExtensionContext) {
         [
             { scheme: 'file', language: 'markdown' },
             { scheme: 'file', language: 'plaintext' },
+            { scheme: 'file', language: 'latex' },
         ],
         new ProseCodeActionProvider(),
         {
@@ -272,14 +273,16 @@ export function activate(context: vscode.ExtensionContext) {
     // Debounced scan on text change
     const onDidChangeTextDocument = vscode.workspace.onDidChangeTextDocument((event) => {
         const document = event.document;
-        if (document.languageId === 'markdown' || document.languageId === 'plaintext') {
+        const supportedLanguages = vscode.workspace.getConfiguration('quillai').get<string[]>('languages', ['markdown', 'plaintext', 'latex']);
+        if (supportedLanguages.includes(document.languageId)) {
             scanner.triggerScan(document);
         }
     });
 
     // Scan when a document is opened
     const onDidOpenTextDocument = vscode.workspace.onDidOpenTextDocument((document) => {
-        if (document.languageId === 'markdown' || document.languageId === 'plaintext') {
+        const supportedLanguages = vscode.workspace.getConfiguration('quillai').get<string[]>('languages', ['markdown', 'plaintext', 'latex']);
+        if (supportedLanguages.includes(document.languageId)) {
             scanner.triggerScan(document);
         }
     });
@@ -293,7 +296,8 @@ export function activate(context: vscode.ExtensionContext) {
     const onDidChangeActiveTextEditor = vscode.window.onDidChangeActiveTextEditor((editor) => {
         if (editor) {
             const document = editor.document;
-            if (document.languageId === 'markdown' || document.languageId === 'plaintext') {
+            const supportedLanguages = vscode.workspace.getConfiguration('quillai').get<string[]>('languages', ['markdown', 'plaintext', 'latex']);
+            if (supportedLanguages.includes(document.languageId)) {
                 scanner.triggerScan(document);
             }
         }
@@ -304,7 +308,8 @@ export function activate(context: vscode.ExtensionContext) {
         if (event.affectsConfiguration('quillai')) {
             // Re-scan all open documents with new settings
             vscode.workspace.textDocuments.forEach((document) => {
-                if (document.languageId === 'markdown' || document.languageId === 'plaintext') {
+                const supportedLanguages = vscode.workspace.getConfiguration('quillai').get<string[]>('languages', ['markdown', 'plaintext', 'latex']);
+                if (supportedLanguages.includes(document.languageId)) {
                     scanner.triggerScan(document);
                 }
             });
