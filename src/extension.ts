@@ -11,6 +11,7 @@ import { ProseScanner } from './scanner';
 import { ProseCodeActionProvider } from './codeActions';
 import { DiffPreview } from './diffPreview';
 import { LintIssue, ProviderType } from './types';
+import { logger } from './logger';
 
 let configManager: ConfigManager;
 let diagnosticManager: DiagnosticManager;
@@ -18,6 +19,10 @@ let scanner: ProseScanner;
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('QuillAI is now active!');
+    context.subscriptions.push(logger.channel);
+
+    logger.info(`[QuillAI] activate() @ ${new Date().toISOString()}`);
+    logger.show();
 
     // Initialize core components
     configManager = new ConfigManager(context);
@@ -164,8 +169,34 @@ export function activate(context: vscode.ExtensionContext) {
                 title: 'QuillAI: Scanning document...',
                 cancellable: false,
             },
-            async () => {
-                const issues = await scanner.scanDocument(document);
+            async (progress) => {
+                // We update progress as each chunk completes.
+                let totalChunks = 0;
+                let completedChunks = 0;
+
+                const issues = await scanner.scanDocument(document, {
+                    onChunkProgress: ({ chunkIndex, totalChunks: total, stage }) => {
+                        // Capture total once we know it.
+                        if (totalChunks === 0) {
+                            totalChunks = total;
+                        }
+
+                        if (stage === 'sending') {
+                            progress.report({ message: `Analyzing chunk ${chunkIndex}/${total}...` });
+                            return;
+                        }
+
+                        // For done/skip/error, advance the bar.
+                        if (total > 0) {
+                            const increment = 100 / total;
+                            completedChunks = Math.min(completedChunks + 1, total);
+                            progress.report({
+                                message: `Completed chunk ${completedChunks}/${total}`,
+                                increment,
+                            });
+                        }
+                    },
+                });
                 DiffPreview.showSummary(issues);
             }
         );
@@ -181,8 +212,14 @@ export function activate(context: vscode.ExtensionContext) {
     const setLanguageCmd = vscode.commands.registerCommand('quillai.setLanguage', async () => {
         const languageOptions: { label: string; value: string; description: string }[] = [
             { label: '$(zap) Auto Detect', value: 'auto', description: 'Let the LLM detect the language automatically' },
-            { label: 'English', value: 'en', description: 'English' },
-            { label: '中文', value: 'zh', description: 'Chinese' },
+            { label: 'English (US)', value: 'en-US', description: 'American English spelling and punctuation' },
+            { label: 'English (UK)', value: 'en-GB', description: 'British English spelling and punctuation' },
+            { label: 'English (Generic)', value: 'en', description: 'Generic English (legacy)' },
+            { label: '中文（中国大陆）', value: 'zh-CN', description: '简体中文（中国大陆）' },
+            { label: '中文（香港）', value: 'zh-HK', description: '繁體中文（香港）' },
+            { label: '中文（澳门）', value: 'zh-MO', description: '繁體中文（澳門）' },
+            { label: '中文（新加坡）', value: 'zh-SG', description: '简体中文（新加坡）' },
+            { label: '中文（通用）', value: 'zh', description: '中文（通用 / legacy）' },
             { label: '日本語', value: 'ja', description: 'Japanese' },
             { label: '한국어', value: 'ko', description: 'Korean' },
             { label: 'Français', value: 'fr', description: 'French' },
@@ -259,8 +296,11 @@ export function activate(context: vscode.ExtensionContext) {
     const codeActionProvider = vscode.languages.registerCodeActionsProvider(
         [
             { scheme: 'file', language: 'markdown' },
+            { scheme: 'untitled', language: 'markdown' },
             { scheme: 'file', language: 'plaintext' },
+            { scheme: 'untitled', language: 'plaintext' },
             { scheme: 'file', language: 'latex' },
+            { scheme: 'untitled', language: 'latex' },
         ],
         new ProseCodeActionProvider(),
         {

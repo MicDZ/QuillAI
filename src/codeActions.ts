@@ -8,6 +8,22 @@ import { LintIssue } from './types';
 export class ProseCodeActionProvider implements vscode.CodeActionProvider {
     static readonly providedCodeActionKinds = [vscode.CodeActionKind.QuickFix];
 
+    private parseReplacementFromMessage(message: string): string | null {
+        // Diagnostic message format (from DiagnosticManager):
+        // `${reason}\n\nSuggestion: "${replacement}"`
+        const marker = 'Suggestion:';
+        const idx = message.lastIndexOf(marker);
+        if (idx === -1) {
+            return null;
+        }
+        let rest = message.slice(idx + marker.length).trim();
+        // rest is expected to be: "..." (quoted)
+        if (rest.startsWith('"') && rest.endsWith('"') && rest.length >= 2) {
+            rest = rest.slice(1, -1);
+        }
+        return rest.length > 0 ? rest : null;
+    }
+
     provideCodeActions(
         document: vscode.TextDocument,
         range: vscode.Range | vscode.Selection,
@@ -21,10 +37,30 @@ export class ProseCodeActionProvider implements vscode.CodeActionProvider {
                 continue;
             }
 
-            const issue = (diagnostic as unknown as { lintIssue?: LintIssue }).lintIssue;
-            if (!issue) {
+            const embeddedIssue = (diagnostic as unknown as { lintIssue?: LintIssue }).lintIssue;
+            const replacementFromMessage = this.parseReplacementFromMessage(diagnostic.message);
+            const replacement = embeddedIssue?.replacement ?? replacementFromMessage;
+            if (!replacement) {
                 continue;
             }
+
+            const fixRange = new vscode.Range(
+                diagnostic.range.start.line,
+                diagnostic.range.start.character,
+                diagnostic.range.end.line,
+                diagnostic.range.end.character
+            );
+
+            const originalText = document.getText(fixRange);
+            const issue: LintIssue = embeddedIssue ?? {
+                line: diagnostic.range.start.line + 1,
+                startChar: diagnostic.range.start.character,
+                endChar: diagnostic.range.end.character,
+                original: originalText,
+                replacement,
+                reason: diagnostic.message,
+                severity: 'warning',
+            };
 
             // 1. Quick Fix - Apply the suggestion
             const fixAction = new vscode.CodeAction(
@@ -35,12 +71,6 @@ export class ProseCodeActionProvider implements vscode.CodeActionProvider {
             fixAction.isPreferred = true;
 
             const edit = new vscode.WorkspaceEdit();
-            const fixRange = new vscode.Range(
-                diagnostic.range.start.line,
-                diagnostic.range.start.character,
-                diagnostic.range.end.line,
-                diagnostic.range.end.character
-            );
             edit.replace(document.uri, fixRange, issue.replacement);
             fixAction.edit = edit;
 

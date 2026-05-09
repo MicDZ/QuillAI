@@ -54,6 +54,7 @@ Open VS Code Settings (`Cmd+,`) and search for "QuillAI":
 | `quillai.maxChars` | `5000` | Max characters per scan (larger docs use paragraph extraction) |
 | `quillai.enabled` | `true` | Enable/disable automatic background scanning |
 | `quillai.diagnosticSeverity` | `warning` | Default severity for issues |
+| `quillai.language` | `auto` | Proofreading language/locale (e.g. `en-US`, `en-GB`, `zh-CN`, `zh-HK`, `zh-MO`, `zh-SG`) or `auto` |
 | `quillai.systemPrompt` | _(built-in)_ | Custom system prompt for the LLM |
 
 ### 3. Start Writing
@@ -66,6 +67,7 @@ Open any `.md`, `.txt`, or `.tex` file. The extension will automatically scan yo
 |---------|-------------|
 | `QuillAI: Check Current Document` | Manually trigger a full document scan |
 | `QuillAI: Set API Key` | Set or update your API key securely |
+| `QuillAI: Set Proofreading Language` | Choose a specific language/locale (or auto-detect) |
 | `QuillAI: Clear All Diagnostics` | Remove all highlighted issues |
 
 ## Using with Ollama (Local Models)

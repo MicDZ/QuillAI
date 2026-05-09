@@ -8,6 +8,7 @@ import { ConfigManager } from './config';
 import { createProvider } from './providers/factory';
 import { DiagnosticManager } from './diagnostics';
 import { DiffPreview } from './diffPreview';
+import { logger } from './logger';
 
 export class ProseScanner {
     private debounceTimers: Map<string, NodeJS.Timeout> = new Map();
@@ -55,23 +56,45 @@ export class ProseScanner {
      * For documents larger than maxChars, splits into paragraph-based chunks
      * and scans each chunk to cover the entire document.
      */
-    async scanDocument(document: vscode.TextDocument): Promise<LintIssue[]> {
+    async scanDocument(
+        document: vscode.TextDocument,
+        options?: {
+            /**
+             * Called as chunks are processed. Useful for progress UI.
+             * - stage='sending': right before sending to the LLM
+             * - stage='done': chunk finished successfully
+             * - stage='skip': chunk skipped (empty)
+             * - stage='error': chunk failed
+             */
+            onChunkProgress?: (info: {
+                chunkIndex: number; // 1-based
+                totalChunks: number;
+                stage: 'sending' | 'done' | 'skip' | 'error';
+            }) => void;
+        }
+    ): Promise<LintIssue[]> {
         const uri = document.uri.toString();
+        const fileName = document.fileName.split('/').pop() ?? 'unknown';
 
         // Prevent concurrent scans of the same document
         if (this.scanningDocuments.has(uri)) {
+            logger.info(`[Scanner] SKIP (already scanning): ${fileName}`);
             return [];
         }
 
         const config = await this.configManager.getConfig();
         if (!config.enabled) {
+            logger.info(`[Scanner] SKIP (disabled): ${fileName}`);
             return [];
         }
 
         this.scanningDocuments.add(uri);
+        logger.info(`[Scanner] START scan: ${fileName} (${document.getText().length} chars, maxChars=${config.maxChars})`);
 
         try {
             const chunks = this.splitIntoChunks(document, config.maxChars);
+            logger.info(`[Scanner] Split into ${chunks.length} chunk(s)`);
+
             if (chunks.length === 0) {
                 this.diagnosticManager.clearDiagnostics(document.uri);
                 return [];
@@ -82,23 +105,57 @@ export class ProseScanner {
 
             const allIssues: LintIssue[] = [];
 
-            for (const chunk of chunks) {
+            for (let i = 0; i < chunks.length; i++) {
+                const chunk = chunks[i];
                 if (!chunk.text.trim()) {
+                    logger.info(`[Scanner] Chunk ${i + 1}/${chunks.length}: empty, skipping`);
+                    options?.onChunkProgress?.({
+                        chunkIndex: i + 1,
+                        totalChunks: chunks.length,
+                        stage: 'skip',
+                    });
                     continue;
                 }
-                const issues = await provider.analyze(chunk.text, systemPrompt);
-                // Issues already have correct 1-based line numbers from the numbered text
-                allIssues.push(...issues);
+                logger.info(`[Scanner] Chunk ${i + 1}/${chunks.length}: ${chunk.text.length} chars, sending to LLM...`);
+                options?.onChunkProgress?.({
+                    chunkIndex: i + 1,
+                    totalChunks: chunks.length,
+                    stage: 'sending',
+                });
+                const startTime = Date.now();
+
+                try {
+                    const issues = await provider.analyze(chunk.text, systemPrompt);
+                    logger.info(`[Scanner] Chunk ${i + 1}/${chunks.length}: got ${issues.length} issues in ${Date.now() - startTime}ms`);
+                    allIssues.push(...issues);
+                    options?.onChunkProgress?.({
+                        chunkIndex: i + 1,
+                        totalChunks: chunks.length,
+                        stage: 'done',
+                    });
+                } catch (chunkErr) {
+                    const msg = chunkErr instanceof Error ? chunkErr.message : String(chunkErr);
+                    logger.info(`[Scanner] Chunk ${i + 1}/${chunks.length} FAILED: ${msg}`);
+                    options?.onChunkProgress?.({
+                        chunkIndex: i + 1,
+                        totalChunks: chunks.length,
+                        stage: 'error',
+                    });
+                    // Continue with remaining chunks instead of aborting
+                }
             }
 
+            logger.info(`[Scanner] DONE: ${allIssues.length} total issues for ${fileName}`);
             this.diagnosticManager.updateDiagnostics(document, allIssues, config.diagnosticSeverity);
             return allIssues;
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
+            logger.info(`[Scanner] ERROR: ${message}`);
             vscode.window.showErrorMessage(`QuillAI: ${message}`);
             return [];
         } finally {
             this.scanningDocuments.delete(uri);
+            logger.info(`[Scanner] Released scan lock: ${fileName}`);
         }
     }
 
@@ -190,8 +247,18 @@ export class ProseScanner {
         }
 
         const languageNames: Record<string, string> = {
-            en: 'English',
-            zh: 'Chinese (中文)',
+            // English variants
+            'en-US': 'English (United States / American English)',
+            'en-GB': 'English (United Kingdom / British English)',
+            en: 'English (generic)',
+
+            // Chinese variants
+            'zh-CN': 'Chinese (Simplified / 简体中文 - 中国大陆)',
+            'zh-HK': 'Chinese (Traditional / 繁體中文 - 香港)',
+            'zh-MO': 'Chinese (Traditional / 繁體中文 - 澳門)',
+            'zh-SG': 'Chinese (Simplified / 简体中文 - 新加坡)',
+            zh: 'Chinese (中文, generic)',
+
             ja: 'Japanese (日本語)',
             ko: 'Korean (한국어)',
             fr: 'French (Français)',
